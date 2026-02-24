@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scriptify AI — Handwriting to Text</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ── THEME TOKENS ─────────────────────────────────────────── */
+:root {
+  --bg:        #f5f0e8;
+  --surface:   #ede7d3;
+  --surface2:  #ffffff;
+  --ink:       #0e0c0a;
+  --ink2:      #3a2e22;
+  --muted:     #8b6f47;
+  --line:      rgba(139,111,71,0.18);
+  --margin:    rgba(192,57,43,0.22);
+  --gold:      #c8a84b;
+  --gold-glow: rgba(200,168,75,0.15);
+  --rust:      #c0392b;
+  --rust-soft: rgba(192,57,43,0.1);
+  --shadow:    rgba(139,111,71,0.12);
+  --btn-hover-bg: #0e0c0a;
+  --btn-hover-fg: #f5f0e8;
+  --upload-bg: rgba(237,231,211,0.5);
+  --toggle-bg: #d4c9b0;
+  --scrollbar: rgba(139,111,71,0.3);
+}
+
+[data-theme="dark"] {
+  --bg:        #141210;
+  --surface:   #1e1a16;
+  --surface2:  #241f19;
+  --ink:       #f0e8d8;
+  --ink2:      #c8b89a;
+  --muted:     #9e8060;
+  --line:      rgba(160,130,85,0.13);
+  --margin:    rgba(192,57,43,0.18);
+  --gold:      #d4a843;
+  --gold-glow: rgba(212,168,67,0.12);
+  --rust:      #e05a4a;
+  --rust-soft: rgba(224,90,74,0.12);
+  --shadow:    rgba(0,0,0,0.4);
+  --btn-hover-bg: #f0e8d8;
+  --btn-hover-fg: #141210;
+  --upload-bg: rgba(30,26,22,0.8);
+  --toggle-bg: #3a3028;
+  --scrollbar: rgba(160,130,85,0.25);
+}
+
+/* ── RESET & BASE ─────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  transition: background 0.4s, color 0.4s;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    transparent, transparent 31px,
+    var(--line) 31px, var(--line) 32px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  left: 88px;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: var(--margin);
+  pointer-events: none;
+  z-index: 0;
+  transition: background 0.4s;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+
+/* ── HEADER ───────────────────────────────────────────────── */
+header {
+  position: relative;
+  z-index: 20;
+  padding: 36px 120px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1.5px solid var(--gold);
+  transition: border-color 0.4s;
+}
+
+.header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+
+.logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--ink);
+  transition: color 0.4s;
+}
+
+.logo em { color: var(--rust); font-style: italic; }
+
+.logo-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  background: var(--gold);
+  border-radius: 50%;
+  margin-left: 2px;
+  vertical-align: super;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.4; transform:scale(0.6); }
+}
+
+.tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color 0.4s;
+}
+
+/* ── THEME TOGGLE ─────────────────────────────────────────── */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color 0.4s;
+  min-width: 32px;
+}
+
+.toggle-track {
+  width: 46px; height: 26px;
+  background: var(--toggle-bg);
+  border-radius: 13px;
+  position: relative;
+  transition: background 0.35s, border-color 0.35s;
+  border: 1.5px solid var(--muted);
+}
+
+[data-theme="dark"] .toggle-track {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+[data-theme="dark"] .toggle-thumb { transform: translateX(20px); }
+
+/* ── MAIN LAYOUT ─────────────────────────────────────────── */
+main {
+  position: relative;
+  z-index: 10;
+  padding: 52px 120px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 52px;
+  max-width: 1340px;
+}
+
+.panel-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: color 0.4s;
+}
+.panel-label::before { content:''; width:20px; height:1.5px; background:var(--gold); flex-shrink:0; }
+.panel-label::after  { content:''; flex:1; height:1px; background:var(--line); }
+
+/* ── UPLOAD ZONE ─────────────────────────────────────────── */
+.upload-zone {
+  border: 1.5px dashed var(--muted);
+  border-radius: 6px;
+  background: var(--upload-bg);
+  min-height: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-zone::before {
+  content:'';
+  position:absolute; inset:0;
+  background: var(--gold-glow);
+  opacity:0;
+  transition: opacity 0.3s;
+}
+.upload-zone:hover::before,
+.upload-zone.drag-over::before { opacity:1; }
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+  border-color: var(--gold);
+  border-style: solid;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px var(--shadow);
+}
+
+.upload-zone input {
+  position:absolute; inset:0;
+  opacity:0; cursor:pointer; z-index:5;
+}
+
+.upload-placeholder {
+  display:flex; flex-direction:column;
+  align-items:center; gap:14px;
+  pointer-events:none;
+}
+
+.upload-icon-wrap {
+  width:64px; height:64px;
+  border: 1.5px solid var(--muted);
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  transition: border-color 0.3s, transform 0.3s;
+}
+.upload-zone:hover .upload-icon-wrap { border-color:var(--gold); transform:scale(1.08); }
+
+.upload-icon { width:26px; height:26px; color:var(--muted); transition:color 0.3s; }
+.upload-zone:hover .upload-icon { color:var(--gold); }
+
+.upload-text {
+  font-family:'Playfair Display',serif;
+  font-size:1.05rem;
+  color:var(--muted);
+  text-align:center;
+  transition:color 0.4s;
+}
+
+.upload-sub {
+  font-size:0.73rem;
+  color:var(--muted);
+  opacity:0.65;
+  font-family:'DM Mono',monospace;
+  letter-spacing:0.06em;
+}
+
+#preview-img {
+  max-width:100%;
+  max-height:300px;
+  border-radius:4px;
+  display:none;
+  object-fit:contain;
+  box-shadow: 4px 4px 0 var(--muted), 0 8px 30px var(--shadow);
+  position:relative; z-index:2;
+}
+
+/* ── CONTROLS ────────────────────────────────────────────── */
+.controls-row {
+  display:flex; gap:10px;
+  margin-top:18px;
+}
+
+.btn-transcribe {
+  flex:1;
+  padding:15px 20px;
+  background:var(--ink);
+  color:var(--bg);
+  border:none;
+  font-family:'Playfair Display',serif;
+  font-size:0.95rem;
+  font-style:italic;
+  cursor:pointer;
+  letter-spacing:0.05em;
+  position:relative; overflow:hidden;
+  transition: box-shadow 0.3s, transform 0.15s;
+  border-radius:3px;
+  box-shadow: 3px 3px 0 var(--gold);
+}
+
+.btn-transcribe::after {
+  content:'';
+  position:absolute; inset:0;
+  background:var(--gold);
+  transform:scaleX(0);
+  transform-origin:left;
+  transition:transform 0.4s cubic-bezier(0.23,1,0.32,1);
+  z-index:0;
+}
+.btn-transcribe:hover::after { transform:scaleX(1); }
+.btn-transcribe:hover { box-shadow: 4px 4px 0 var(--muted); }
+.btn-transcribe:active { transform:scale(0.98); }
+
+.btn-transcribe .btn-inner {
+  position:relative; z-index:1;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+
+.btn-transcribe:disabled { opacity:0.35; cursor:not-allowed; box-shadow:none; }
+
+.btn-icon {
+  width:48px; height:48px;
+  padding:0;
+  background:transparent;
+  border:1.5px solid var(--muted);
+  border-radius:3px;
+  cursor:pointer;
+  color:var(--muted);
+  display:flex; align-items:center; justify-content:center;
+  transition:all 0.25s;
+  flex-shrink:0;
+}
+.btn-icon:hover { border-color:var(--gold); color:var(--gold); background:var(--gold-glow); }
+
+/* ── LOADER ──────────────────────────────────────────────── */
+.loader {
+  display:none;
+  align-items:center;
+  gap:10px;
+  font-family:'DM Mono',monospace;
+  font-size:0.73rem;
+  color:var(--muted);
+  margin-top:14px;
+  letter-spacing:0.06em;
+}
+.loader.active { display:flex; }
+
+.loader-bar {
+  flex:1;
+  height:2px;
+  background:var(--line);
+  border-radius:1px;
+  overflow:hidden;
+  position:relative;
+}
+.loader-bar::after {
+  content:'';
+  position:absolute;
+  left:-40%; top:0; bottom:0;
+  width:40%;
+  background:var(--gold);
+  animation:slide 1.4s ease-in-out infinite;
+}
+@keyframes slide { 0%{left:-40%} 100%{left:140%} }
+
+/* ── ERROR ───────────────────────────────────────────────── */
+.error-msg {
+  color:var(--rust);
+  font-family:'DM Mono',monospace;
+  font-size:0.73rem;
+  margin-top:10px;
+  display:none;
+  background:var(--rust-soft);
+  padding:10px 14px;
+  border-left:2.5px solid var(--rust);
+  border-radius:2px;
+  letter-spacing:0.03em;
+  animation:fadeIn 0.3s;
+}
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+
+/* ── OUTPUT PANEL ────────────────────────────────────────── */
+.output-panel { display:flex; flex-direction:column; }
+
+.output-box {
+  flex:1;
+  background:var(--surface2);
+  border:1px solid var(--line);
+  border-left:3px solid var(--gold);
+  padding:28px 28px 28px 34px;
+  min-height:340px;
+  font-family:'Playfair Display',serif;
+  font-size:1.12rem;
+  line-height:2rem;
+  color:var(--ink);
+  position:relative;
+  box-shadow:6px 6px 0 var(--shadow);
+  overflow-y:auto;
+  max-height:480px;
+  transition:background 0.4s, color 0.4s, border-color 0.4s, box-shadow 0.4s;
+  background-image:repeating-linear-gradient(
+    transparent, transparent 31px,
+    var(--line) 31px, var(--line) 32px
+  );
+}
+
+.placeholder-text {
+  font-style:italic;
+  color:var(--muted);
+  font-size:0.95rem;
+  opacity:0.6;
+}
+
+#result-text {
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+.text-revealed { animation:textReveal 0.5s ease both; }
+@keyframes textReveal {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:none; }
+}
+
+/* ── STATS BAR ───────────────────────────────────────────── */
+.stats-bar {
+  display:none;
+  align-items:center;
+  gap:16px;
+  margin-top:12px;
+  padding:9px 16px;
+  background:var(--surface);
+  border-radius:3px;
+  border:1px solid var(--line);
+  transition:background 0.4s, border-color 0.4s;
+}
+.stats-bar.visible { display:flex; animation:fadeIn 0.3s; }
+
+.stat-item {
+  font-family:'DM Mono',monospace;
+  font-size:0.64rem;
+  color:var(--muted);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  display:flex; align-items:center; gap:5px;
+  transition:color 0.4s;
+}
+.stat-item strong { color:var(--ink); font-weight:500; transition:color 0.4s; }
+.stat-sep { width:1px; height:14px; background:var(--line); }
+
+/* ── ACTION BUTTONS ──────────────────────────────────────── */
+.output-actions {
+  display:none; gap:8px; margin-top:12px;
+}
+.output-actions.visible { display:flex; animation:fadeIn 0.3s; }
+
+.btn-sm {
+  padding:8px 16px;
+  border:1.5px solid var(--muted);
+  background:transparent;
+  font-family:'DM Mono',monospace;
+  font-size:0.67rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  cursor:pointer;
+  color:var(--muted);
+  transition:all 0.22s;
+  border-radius:2px;
+  display:flex; align-items:center; gap:6px;
+}
+.btn-sm:hover {
+  background:var(--btn-hover-bg);
+  color:var(--btn-hover-fg);
+  border-color:var(--btn-hover-bg);
+}
+.btn-sm svg { width:12px; height:12px; flex-shrink:0; }
+
+/* ── HISTORY ─────────────────────────────────────────────── */
+.history-section {
+  position:relative; z-index:10;
+  padding:0 120px 60px;
+  max-width:1340px;
+}
+
+.history-list { display:flex; flex-direction:column; gap:10px; margin-top:4px; }
+
+.history-item {
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:4px;
+  padding:13px 18px;
+  display:flex; align-items:center; gap:16px;
+  cursor:pointer;
+  transition:all 0.22s;
+  animation:fadeIn 0.3s both;
+}
+.history-item:hover { border-color:var(--gold); transform:translateX(4px); }
+
+.history-thumb {
+  width:38px; height:38px;
+  object-fit:cover;
+  border-radius:2px;
+  opacity:0.75;
+  flex-shrink:0;
+}
+.history-text {
+  flex:1;
+  font-family:'Playfair Display',serif;
+  font-size:0.87rem;
+  font-style:italic;
+  color:var(--ink2);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  transition:color 0.4s;
+}
+.history-time {
+  font-family:'DM Mono',monospace;
+  font-size:0.6rem;
+  color:var(--muted);
+  letter-spacing:0.08em;
+  flex-shrink:0;
+}
+
+/* ── TOAST ───────────────────────────────────────────────── */
+.toast {
+  position:fixed;
+  bottom:32px; left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:var(--ink);
+  color:var(--bg);
+  font-family:'DM Mono',monospace;
+  font-size:0.72rem;
+  letter-spacing:0.1em;
+  padding:12px 24px;
+  border-radius:24px;
+  z-index:100;
+  transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+  opacity:0;
+  pointer-events:none;
+  box-shadow:0 8px 32px rgba(0,0,0,0.2);
+  white-space:nowrap;
+}
+.toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+/* ── FLOURISH ────────────────────────────────────────────── */
+.flourish {
+  font-family:'Playfair Display',serif;
+  font-size:20rem;
+  color:var(--gold);
+  opacity:0.04;
+  position:fixed;
+  bottom:-60px; right:-30px;
+  pointer-events:none;
+  font-style:italic;
+  line-height:1;
+  z-index:0;
+  transition:color 0.4s;
+}
+
+/* ── RESPONSIVE ─────────────────────────────────────────── */
+@media (max-width:960px) {
+  header, main, .history-section { padding-left:24px; padding-right:24px; }
+  body::after { left:24px; }
+  main { grid-template-columns:1fr; gap:36px; }
+}
+@media (max-width:600px) {
+  .logo { font-size:1.7rem; }
+  .tagline { display:none; }
+  header { padding-top:22px; padding-bottom:18px; }
+  main { padding-top:30px; padding-bottom:30px; }
+  .flourish { display:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <div class="logo">Script<em>ify</em><span class="logo-dot"></span></div>
+    <div class="tagline">Handwriting Recognition AI</div>
+  </div>
+
+  <div class="theme-toggle" id="theme-toggle" role="button" tabindex="0" aria-label="Toggle dark mode">
+    <span class="toggle-label" id="toggle-label">Light</span>
+    <div class="toggle-track">
+      <div class="toggle-thumb"><span id="toggle-icon">☀️</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- LEFT: Upload -->
+  <div>
+    <div class="panel-label">Upload Handwriting</div>
+
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*">
+      <div class="upload-placeholder" id="upload-placeholder">
+        <div class="upload-icon-wrap">
+          <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="upload-text">Drop your handwritten image here</div>
+        <div class="upload-sub">or click to browse &middot; PNG, JPG, WEBP, GIF</div>
+      </div>
+      <img id="preview-img" alt="Uploaded preview">
+    </div>
+
+    <div class="controls-row">
+      <button class="btn-transcribe" id="transcribe-btn" disabled>
+        <span class="btn-inner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          Transcribe Handwriting
+        </span>
+      </button>
+      <button class="btn-icon" id="reupload-btn" title="Change image" style="display:none" aria-label="Change image">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="loader" id="loader">
+      <div class="loader-bar"></div>
+      <span>Analysing&hellip;</span>
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <!-- RIGHT: Output -->
+  <div class="output-panel">
+    <div class="panel-label">Transcribed Text</div>
+
+    <div class="output-box">
+      <div id="result-text">
+        <span class="placeholder-text">Your transcribed text will appear here, beautifully typeset as if inked on paper&hellip;</span>
+      </div>
+    </div>
+
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat-item">Words <strong id="stat-words">—</strong></div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">Chars <strong id="stat-chars">—</strong></div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">Lines <strong id="stat-lines">—</strong></div>
+    </div>
+
+    <div class="output-actions" id="output-actions">
+      <button class="btn-sm" id="copy-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+        </svg>
+        Copy
+      </button>
+      <button class="btn-sm" id="download-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download .txt
+      </button>
+      <button class="btn-sm" id="clear-btn" style="margin-left:auto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+        Clear
+      </button>
+    </div>
+  </div>
+</main>
+
+<!-- HISTORY -->
+<div class="history-section" id="history-section" style="display:none">
+  <div class="panel-label">Recent Transcriptions</div>
+  <div class="history-list" id="history-list"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- FLOURISH -->
+<div class="flourish" aria-hidden="true">S</div>
+
+<!-- HIDDEN re-upload input -->
+<input type="file" id="reupload-input" accept="image/*" style="display:none">
+
+<script>
+const API_URL = 'http://127.0.0.1:8000/predict';
+
+const fileInput      = document.getElementById('file-input');
+const reuploadInput  = document.getElementById('reupload-input');
+const uploadZone     = document.getElementById('upload-zone');
+const previewImg     = document.getElementById('preview-img');
+const uploadHolder   = document.getElementById('upload-placeholder');
+const transcribeBtn  = document.getElementById('transcribe-btn');
+const reuploadBtn    = document.getElementById('reupload-btn');
+const loader         = document.getElementById('loader');
+const errorMsg       = document.getElementById('error-msg');
+const resultText     = document.getElementById('result-text');
+const statsBar       = document.getElementById('stats-bar');
+const statWords      = document.getElementById('stat-words');
+const statChars      = document.getElementById('stat-chars');
+const statLines      = document.getElementById('stat-lines');
+const outputActions  = document.getElementById('output-actions');
+const copyBtn        = document.getElementById('copy-btn');
+const downloadBtn    = document.getElementById('download-btn');
+const clearBtn       = document.getElementById('clear-btn');
+const themeToggle    = document.getElementById('theme-toggle');
+const toggleLabel    = document.getElementById('toggle-label');
+const toggleIcon     = document.getElementById('toggle-icon');
+const toastEl        = document.getElementById('toast');
+const historySection = document.getElementById('history-section');
+const historyList    = document.getElementById('history-list');
+
+let selectedFile = null;
+let sessionHistory = [];
+let currentText  = '';
+
+// ── THEME ────────────────────────────────────────────────────
+const savedTheme = localStorage.getItem('scriptify-theme') || 'light';
+applyTheme(savedTheme);
+
+themeToggle.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+});
+themeToggle.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') themeToggle.click(); });
+
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('scriptify-theme', t);
+  toggleLabel.textContent = t === 'dark' ? 'Dark' : 'Light';
+  toggleIcon.textContent  = t === 'dark' ? '🌙' : '☀️';
+}
+
+// ── FILE HANDLING ────────────────────────────────────────────
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+reuploadInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+reuploadBtn.addEventListener('click', () => reuploadInput.click());
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) handleFile(f);
+});
+
+function handleFile(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    previewImg.src = e.target.result;
+    previewImg.style.display = 'block';
+    uploadHolder.style.display = 'none';
+    reuploadBtn.style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+  transcribeBtn.disabled = false;
+  errorMsg.style.display = 'none';
+}
+
+// ── TRANSCRIBE ───────────────────────────────────────────────
+transcribeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  loader.classList.add('active');
+  transcribeBtn.disabled = true;
+  errorMsg.style.display = 'none';
+  resultText.innerHTML = '<span class="placeholder-text">Deciphering your handwriting&hellip;</span>';
+  statsBar.classList.remove('visible');
+  outputActions.classList.remove('visible');
+  currentText = '';
+
+  try {
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+
+    const res = await fetch(API_URL, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    currentText = (data.prediction || '').trim() || '(No text detected)';
+
+    resultText.textContent = currentText;
+    resultText.classList.remove('text-revealed');
+    void resultText.offsetWidth; // reflow
+    resultText.classList.add('text-revealed');
+
+    statWords.textContent = currentText.split(/\s+/).filter(Boolean).length;
+    statChars.textContent = currentText.length;
+    statLines.textContent = currentText.split('\n').length;
+    statsBar.classList.add('visible');
+    outputActions.classList.add('visible');
+
+    addToHistory(previewImg.src, currentText);
+
+  } catch (err) {
+    errorMsg.textContent = '✦ ' + err.message;
+    errorMsg.style.display = 'block';
+    resultText.innerHTML = '<span class="placeholder-text">Transcription failed. Please try again.</span>';
+  } finally {
+    loader.classList.remove('active');
+    transcribeBtn.disabled = false;
+  }
+});
+
+// ── COPY ─────────────────────────────────────────────────────
+copyBtn.addEventListener('click', async () => {
+  if (!currentText) return;
+  try {
+    await navigator.clipboard.writeText(currentText);
+    showToast('✦ Copied to clipboard');
+    const orig = copyBtn.innerHTML;
+    copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
+    setTimeout(() => { copyBtn.innerHTML = orig; }, 2000);
+  } catch {
+    showToast('Copy failed — try selecting manually');
+  }
+});
+
+// ── DOWNLOAD ─────────────────────────────────────────────────
+downloadBtn.addEventListener('click', () => {
+  if (!currentText) return;
+  const blob = new Blob([currentText], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'scriptify-transcription.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('✦ Downloaded as .txt');
+});
+
+// ── CLEAR ────────────────────────────────────────────────────
+clearBtn.addEventListener('click', () => {
+  selectedFile = null;
+  fileInput.value = '';
+  reuploadInput.value = '';
+  previewImg.style.display = 'none';
+  previewImg.src = '';
+  uploadHolder.style.display = 'flex';
+  reuploadBtn.style.display = 'none';
+  transcribeBtn.disabled = true;
+  resultText.innerHTML = '<span class="placeholder-text">Your transcribed text will appear here, beautifully typeset as if inked on paper&hellip;</span>';
+  statsBar.classList.remove('visible');
+  outputActions.classList.remove('visible');
+  errorMsg.style.display = 'none';
+  currentText = '';
+});
+
+// ── HISTORY ──────────────────────────────────────────────────
+function addToHistory(imgSrc, text) {
+  sessionHistory.unshift({ imgSrc, text, time: new Date() });
+  if (sessionHistory.length > 5) sessionHistory.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!sessionHistory.length) { historySection.style.display = 'none'; return; }
+  historySection.style.display = 'block';
+  historyList.innerHTML = '';
+  sessionHistory.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'history-item';
+    el.innerHTML = `
+      <img class="history-thumb" src="${item.imgSrc}" alt="">
+      <div class="history-text">${item.text}</div>
+      <div class="history-time">${item.time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+    `;
+    el.addEventListener('click', () => {
+      currentText = item.text;
+      resultText.textContent = item.text;
+      resultText.classList.remove('text-revealed');
+      void resultText.offsetWidth;
+      resultText.classList.add('text-revealed');
+      statWords.textContent = item.text.split(/\s+/).filter(Boolean).length;
+      statChars.textContent = item.text.length;
+      statLines.textContent = item.text.split('\n').length;
+      statsBar.classList.add('visible');
+      outputActions.classList.add('visible');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    historyList.appendChild(el);
+  });
+}
+
+// ── TOAST ────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
