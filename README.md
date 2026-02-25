@@ -25,7 +25,7 @@ A full-stack handwriting recognition web application built using FastAPI and a T
 ### Frontend
 - HTML  
 - CSS  
-- JavaScript  
+
 
 ---
 
@@ -74,3 +74,4 @@ The application uses a Vision Transformer encoder and Transformer decoder archit
 
 Kashvi Agrawal  
 GitHub: https://github.com/kashviagrawal04
+
